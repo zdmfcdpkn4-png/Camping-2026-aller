@@ -48,6 +48,9 @@
   /* bandeau alerte */
   .alerte{background:var(--rouge);color:#fff;text-align:center;font-size:.78rem;
     font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:6px 10px}
+  .sync{background:#E7EDF7;color:#3D4B66;text-align:center;font-size:.72rem;
+    padding:5px 10px;border-bottom:1px solid var(--ligne)}
+  .sync.ko{background:#FFF4CC}
 
   main{max-width:980px;margin:0 auto;padding:14px 14px 40px}
 
@@ -208,6 +211,7 @@
 </header>
 
 <div class="alerte">Bison Futé : samedi rouge — départ 9 h 30 : marge fine, décision Waze à la recharge de Saintes</div>
+<div class="sync" id="syncInfo">☁ Suivi partagé entre tous les utilisateurs du lien — synchronisation…</div>
 
 <main>
   <section class="controls" aria-label="Réglages">
@@ -263,8 +267,9 @@
   <footer>
     Tracé indicatif (points approchés, hors géométrie routière exacte). Superchargeurs vérifiés au
     23–24/07/2026 : Saintes Nord (20 bornes, 250 kW), Saintes Bois-Saint-Georges (8 bornes),
-    Aire-sur-l’Adour (12 bornes, 250 kW) — source tesla.com. Le suivi (coches, heure de départ)
-    est enregistré sur cet appareil quand c’est possible.
+    Aire-sur-l’Adour (12 bornes, 250 kW) — source tesla.com. Le suivi (départ, étapes, bagages)
+    est partagé : toute personne connaissant l’adresse et l’identifiant de trajet voit et
+    modifie la même liste, en direct — hébergement GitHub + Vercel, données sur Redis (Upstash).
   </footer>
 </main>
 
@@ -273,7 +278,7 @@
 "use strict";
 
 /* ================= Données ================= */
-const KEY = "argeles-20260725-v2";
+const KEY = "argeles-20260725-v3";
 
 const STEPS = [
   {id:"depart", n:"1", km:0, off:0, charge:null,
@@ -366,22 +371,76 @@ const R_AUTO2 = [[44.554,-0.249],[44.50,-0.245],[44.43,-0.22],[44.34,-0.24],[44.
 const R_DEP2  = [[43.278,-0.200],[43.22,-0.15],[43.18,-0.11],[43.14,-0.075],[43.095,-0.045],[43.06,-0.062],[43.03,-0.082],[43.0122,-0.0970]];
 
 /* ================= État ================= */
-let state = {dep:"09:30", steps:{}, prep:{}, bag:{}, alts:false};
+let state = {dep:"09:30", steps:{}, prep:{}, bag:{}, alts:false, ts:{}, resetAt:0};
 
-async function loadState(){
-  try{
-    if(window.storage && window.storage.get){
-      const r = await window.storage.get(KEY);
-      if(r && r.value){ Object.assign(state, JSON.parse(r.value)); }
+/* ---- Backend partagé : API /api/sync (Vercel) + Redis Upstash ----
+   Chaque coche est horodatée ; le serveur fusionne, item par item, la
+   modification la plus récente entre appareils, puis renvoie l'état
+   consolidé. Synchro toutes les 12 s quand la page est visible. */
+const TRIP = "argeles-2026"; /* à personnaliser : sert de clé d'accès (voir README) */
+const API  = "/api/sync?trip=" + encodeURIComponent(TRIP);
+
+function getPath(s, p){ const i = p.indexOf("."); if(i < 0) return s[p];
+  const sec = p.slice(0, i), k = p.slice(i + 1); return (s[sec] || {})[k]; }
+function setPath(s, p, v){ const i = p.indexOf("."); if(i < 0){ s[p] = v; return; }
+  const sec = p.slice(0, i), k = p.slice(i + 1); (s[sec] = s[sec] || {})[k] = v; }
+function mergeStates(a, b){
+  const RA = Math.max(a.resetAt || 0, b.resetAt || 0);
+  const out = {dep:"09:30", steps:{}, prep:{}, bag:{}, alts:false, ts:{}, resetAt:RA};
+  [a, b].forEach(src => {
+    const t = (src && src.ts) || {};
+    for(const p in t){
+      if(t[p] < RA) continue;
+      if(!(p in out.ts) || t[p] > out.ts[p]){ out.ts[p] = t[p]; setPath(out, p, getPath(src, p)); }
     }
-  }catch(e){ /* clé absente ou stockage indisponible : on continue en mémoire */ }
+  });
+  return out;
 }
-async function saveState(){
-  try{
-    if(window.storage && window.storage.set){
-      await window.storage.set(KEY, JSON.stringify(state), false);
-    }
-  }catch(e){ /* meilleur effort */ }
+function touch(p){ (state.ts = state.ts || {})[p] = Date.now(); }
+
+function setSyncInfo(ok){
+  const el = document.getElementById("syncInfo");
+  if(!el) return;
+  if(ok){
+    el.classList.remove("ko");
+    el.textContent = "☁ Suivi partagé — dernière synchro à " + new Date().toLocaleTimeString("fr-FR");
+  }else{
+    el.classList.add("ko");
+    el.textContent = "Hors ligne — modifications gardées sur cet appareil, nouvel essai automatique…";
+  }
+}
+
+let syncBusy = false, syncAgain = false;
+async function syncNow(){
+  if(syncBusy){ syncAgain = true; return; }
+  syncBusy = true;
+  do{
+    syncAgain = false;
+    try{
+      const r = await fetch(API, {method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({state})});
+      if(!r.ok) throw new Error("HTTP " + r.status);
+      const j = await r.json();
+      if(j && j.state){
+        /* fusion locale : conserve un clic survenu pendant la requête */
+        const merged = mergeStates(state, j.state);
+        const changed = JSON.stringify(merged) !== JSON.stringify(state);
+        state = merged;
+        if(changed) refresh();
+      }
+      setSyncInfo(true);
+    }catch(e){ setSyncInfo(false); }
+  }while(syncAgain);
+  syncBusy = false;
+}
+const saveState = syncNow;
+async function loadState(){ await syncNow(); }
+function startPoll(){
+  setInterval(() => { if(document.visibilityState === "visible") syncNow(); }, 12000);
+  document.addEventListener("visibilitychange", () => {
+    if(document.visibilityState === "visible") syncNow();
+  });
 }
 
 /* ================= Utilitaires temps ================= */
@@ -447,9 +506,9 @@ function buildCards(){
     const btn = card.querySelector(".pass");
     btn.addEventListener("click", ev => {
       ev.stopPropagation();
-      if(state.steps[s.id]) delete state.steps[s.id];
-      else state.steps[s.id] = nowHM();
-      saveState(); refresh();
+      state.steps[s.id] = state.steps[s.id] ? null : nowHM();
+      touch("steps." + s.id);
+      refresh(); saveState();
     });
     wrap.appendChild(card);
     const dv = DEVS.find(d => d.after === s.id);
@@ -473,7 +532,8 @@ function buildPrep(){
     b.innerHTML = '<span class="box">✓</span>'+p.t;
     b.addEventListener("click", () => {
       state.prep[p.k] = !state.prep[p.k];
-      saveState(); refresh();
+      touch("prep." + p.k);
+      refresh(); saveState();
     });
     wrap.appendChild(b);
   });
@@ -495,8 +555,9 @@ function buildBag(){
       b.innerHTML = '<span class="box">✓</span><span>'+it+'</span>';
       b.addEventListener("click", () => {
         state.bag = state.bag || {};
-        if(state.bag[b.id]) delete state.bag[b.id]; else state.bag[b.id] = 1;
-        saveState(); refresh();
+        state.bag[b.id] = state.bag[b.id] ? 0 : 1;
+        touch("bag." + b.id);
+        refresh(); saveState();
       });
       box.appendChild(b);
     });
@@ -572,20 +633,30 @@ function refresh(){
 
 /* ================= Init ================= */
 document.getElementById("dep").addEventListener("change", e => {
-  state.dep = e.target.value || "09:30"; saveState(); refresh();
+  state.dep = e.target.value || "09:30"; touch("dep"); refresh(); saveState();
 });
 document.getElementById("altT").addEventListener("change", e => {
-  state.alts = e.target.checked; saveState(); refresh();
+  state.alts = e.target.checked; touch("alts"); refresh(); saveState();
 });
-document.getElementById("reset").addEventListener("click", () => {
-  state = {dep:"09:30", steps:{}, prep:{}, bag:{}, alts:false}; saveState(); refresh();
+let resetArm = null;
+const resetBtn = document.getElementById("reset");
+resetBtn.addEventListener("click", () => {
+  if(!resetArm){
+    resetBtn.textContent = "Confirmer : remise à zéro pour tout le monde";
+    resetArm = setTimeout(() => { resetArm = null; resetBtn.textContent = "Réinitialiser le suivi"; }, 5000);
+    return;
+  }
+  clearTimeout(resetArm); resetArm = null;
+  resetBtn.textContent = "Réinitialiser le suivi";
+  state = {dep:"09:30", steps:{}, prep:{}, bag:{}, alts:false, ts:{}, resetAt:Date.now()};
+  refresh(); saveState();
 });
 
 initMap();
 buildCards();
 buildPrep();
 buildBag();
-loadState().then(refresh);
+loadState().then(() => { refresh(); startPoll(); });
 </script>
 </body>
 </html>
