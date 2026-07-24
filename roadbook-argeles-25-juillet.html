@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roadbook · Montaigu → Argelès-Gazost · samedi 25 juillet 2026</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{
+    --bleu:#0B3C8A;          /* bleu panneau autoroute */
+    --bleu-fonce:#072B63;
+    --bleu-nuit:#0E1B33;
+    --papier:#F2F4F8;        /* fond bitume clair */
+    --panneau:#FFFFFF;
+    --jaune:#FFC400;         /* jaune déviation */
+    --rouge:#D8232A;         /* rouge Bison Futé */
+    --vert:#0E8A4F;          /* vert "validé" (signalisation nationale) */
+    --ligne:#C9D2E3;
+    --mono:"SF Mono","Cascadia Code","Roboto Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{font-family:var(--sans);background:var(--papier);color:var(--bleu-nuit);line-height:1.45}
+  button{font-family:inherit;cursor:pointer}
+  :focus-visible{outline:3px solid var(--jaune);outline-offset:2px}
+
+  /* ---------- Portique (header collant) ---------- */
+  .gantry{position:sticky;top:0;z-index:1100;background:var(--bleu);color:#fff;
+    padding:12px 14px 10px;box-shadow:0 2px 10px rgba(7,31,68,.35)}
+  .gantry-in{max-width:980px;margin:0 auto;display:flex;gap:12px;align-items:stretch;justify-content:space-between}
+  .dest{border:3px solid #fff;border-radius:12px;padding:8px 12px;flex:1;min-width:0}
+  .dest .eyebrow{font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;opacity:.85}
+  .dest h1{font-size:1.15rem;font-weight:800;letter-spacing:.02em;line-height:1.15;text-transform:uppercase}
+  .dest .sub{font-size:.78rem;opacity:.9;margin-top:2px}
+  .eta{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:2px;white-space:nowrap}
+  .eta .big{font-family:var(--mono);font-size:1.7rem;font-weight:700;line-height:1}
+  .eta .lbl{font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;opacity:.85}
+  .eta .marge{font-family:var(--mono);font-size:.8rem;background:rgba(255,255,255,.14);
+    border-radius:6px;padding:2px 7px}
+  .eta .marge.bad{background:var(--rouge)}
+  .nextline{max-width:980px;margin:8px auto 0;display:flex;gap:8px;align-items:center;
+    font-size:.8rem}
+  .nextline .prog{font-family:var(--mono);background:rgba(255,255,255,.14);border-radius:6px;
+    padding:2px 8px;flex:none}
+  .nextline .nx{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* bandeau alerte */
+  .alerte{background:var(--rouge);color:#fff;text-align:center;font-size:.78rem;
+    font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:6px 10px}
+
+  main{max-width:980px;margin:0 auto;padding:14px 14px 40px}
+
+  /* ---------- Commandes ---------- */
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+  .ctl{background:var(--panneau);border:1px solid var(--ligne);border-radius:10px;
+    padding:8px 12px;display:flex;align-items:center;gap:8px;min-height:44px}
+  .ctl label{font-size:.78rem;font-weight:600}
+  .ctl input[type="time"]{font-family:var(--mono);font-size:1rem;border:none;background:transparent;color:inherit}
+  .ctl-toggle input{width:18px;height:18px;accent-color:var(--bleu)}
+  .reset{margin-left:auto;background:none;border:none;color:var(--bleu);font-size:.78rem;
+    text-decoration:underline;min-height:44px}
+
+  /* ---------- Carte ---------- */
+  #map{height:46vh;min-height:300px;border-radius:14px;border:1px solid var(--ligne);
+    background:#DDE4EE;z-index:1}
+  .map-note{display:none;font-size:.75rem;color:#5A6A85}
+  .map-note.show{display:block;font-size:.75rem;background:#FFF4CC;border:1px solid #E8C84A;
+    border-radius:8px;padding:6px 10px;margin-top:6px}
+  .legende{display:flex;flex-wrap:wrap;gap:12px;font-size:.72rem;margin:8px 2px 0;color:#3D4B66}
+  .legende span{display:inline-flex;align-items:center;gap:6px}
+  .tiret{display:inline-block;width:26px;height:0;border-top:4px solid var(--bleu);border-radius:2px}
+  .tiret.dash{border-top-style:dashed}
+  .tiret.alt{border-top-color:var(--jaune);border-top-style:dashed}
+
+  /* marqueurs Leaflet */
+  .mk{display:flex;align-items:center;justify-content:center;width:30px;height:30px;
+    border-radius:50%;background:var(--bleu);color:#fff;border:3px solid #fff;
+    font-family:var(--mono);font-weight:700;font-size:.85rem;box-shadow:0 1px 5px rgba(0,0,0,.4)}
+  .mk.charge{background:var(--jaune);color:var(--bleu-nuit)}
+  .mk.done{background:var(--vert)}
+  .leaflet-popup-content{font-family:var(--sans);font-size:.8rem;margin:10px 12px}
+  .leaflet-popup-content b{display:block;margin-bottom:2px}
+
+  /* ---------- Préparatifs ---------- */
+  .prep{margin:16px 0 6px}
+  .prep h2, .roadbook h2, .contacts h2, .bag h2{font-size:.78rem;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--bleu);margin-bottom:8px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{border:1.5px solid var(--ligne);background:var(--panneau);border-radius:999px;
+    padding:9px 14px;font-size:.8rem;display:inline-flex;align-items:center;gap:8px;min-height:44px}
+  .chip .box{width:16px;height:16px;border-radius:4px;border:2px solid var(--bleu);flex:none;
+    display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:.7rem}
+  .chip[aria-pressed="true"]{border-color:var(--vert);color:var(--vert)}
+  .chip[aria-pressed="true"] .box{background:var(--vert);border-color:var(--vert)}
+
+  /* ---------- Check-list bagages ---------- */
+  .bag{margin-top:22px}
+  details.bgrp{background:var(--panneau);border:1px solid var(--ligne);border-radius:12px;
+    margin-bottom:8px;overflow:hidden}
+  .bgrp summary{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;
+    font-weight:700;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--bleu);list-style:none;min-height:48px}
+  .bgrp summary::-webkit-details-marker{display:none}
+  .bgrp summary > span:first-child{flex:1}
+  .bgrp summary::after{content:"▾";display:inline-block;color:var(--bleu)}
+  .bgrp[open] summary::after{transform:rotate(180deg)}
+  .bcount{font-family:var(--mono);font-size:.74rem;background:var(--papier);
+    border:1px solid var(--ligne);border-radius:6px;padding:2px 8px;color:var(--bleu-nuit)}
+  .bcount.full{background:var(--vert);color:#fff;border-color:var(--vert)}
+  .bitems{padding:2px 8px 10px;display:grid;grid-template-columns:1fr;gap:2px}
+  @media(min-width:640px){.bitems{grid-template-columns:1fr 1fr}}
+  .bitem{display:flex;align-items:center;gap:10px;padding:9px 10px;border:none;
+    background:transparent;border-radius:8px;font-size:.84rem;text-align:left;
+    min-height:44px;color:var(--bleu-nuit)}
+  .bitem:active{background:var(--papier)}
+  .bitem .box{width:18px;height:18px;border-radius:5px;border:2px solid var(--bleu);flex:none;
+    display:flex;align-items:center;justify-content:center;color:#fff;font-size:.72rem}
+  .bitem[aria-pressed="true"]{color:#6B7890;text-decoration:line-through}
+  .bitem[aria-pressed="true"] .box{background:var(--vert);border-color:var(--vert)}
+
+  /* ---------- Roadbook ---------- */
+  .roadbook{margin-top:20px}
+  .card{position:relative;background:var(--bleu);color:#fff;border-radius:14px;
+    padding:14px 14px 14px 58px;margin:0 0 0 10px}
+  .card + .card, .dev + .card, .card + .dev{margin-top:14px}
+  .card::before{content:"";position:absolute;left:24px;top:-14px;bottom:-14px;width:4px;
+    background:var(--ligne)}
+  .card:first-of-type::before{top:18px}
+  .card.last::before{bottom:auto;height:32px}
+  .card.done::before{background:var(--vert)}
+  .node{position:absolute;left:11px;top:14px;z-index:2}
+  .card .titre{font-weight:800;font-size:.98rem;text-transform:uppercase;letter-spacing:.02em;
+    line-height:1.2}
+  .card .route{font-size:.8rem;opacity:.92;margin-top:2px}
+  .meta{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 6px}
+  .tag{font-family:var(--mono);font-size:.74rem;background:rgba(255,255,255,.16);
+    border-radius:6px;padding:3px 8px}
+  .tag.km{background:#fff;color:var(--bleu);font-weight:700}
+  .tag.charge{background:var(--jaune);color:var(--bleu-nuit);font-weight:700}
+  .card ul{list-style:none;margin-top:6px}
+  .card li{font-size:.82rem;padding-left:16px;position:relative;margin-top:4px}
+  .card li::before{content:"›";position:absolute;left:2px;font-weight:800;color:var(--jaune)}
+  .pass{margin-top:12px;width:100%;min-height:46px;border-radius:10px;border:2px dashed rgba(255,255,255,.55);
+    background:transparent;color:#fff;font-size:.86rem;font-weight:700;letter-spacing:.03em}
+  .card.done{background:var(--vert)}
+  .card.done .pass{border-style:solid;border-color:#fff;background:rgba(255,255,255,.15)}
+  .card.done li::before{color:#fff}
+  .card.done .tag.km{color:var(--vert)}
+
+  /* panneaux déviation */
+  .dev{position:relative;background:var(--jaune);color:#161616;border-radius:12px;
+    padding:12px 14px;margin:14px 0 0 44px;border:2px solid #161616}
+  .dev::before{content:"";position:absolute;left:-20px;top:24px;width:18px;height:0;
+    border-top:3px dashed #8A7300}
+  .dev .dv-titre{font-weight:800;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
+  .dev p{font-size:.82rem;margin-top:4px}
+  .dev .delta{display:inline-block;font-family:var(--mono);font-size:.74rem;background:#161616;
+    color:var(--jaune);border-radius:6px;padding:2px 8px;margin-top:6px}
+  .dev.hl{box-shadow:0 0 0 4px rgba(216,35,42,.45)}
+
+  .rocade{font-size:.78rem;color:#3D4B66;margin-top:14px;padding-left:10px;
+    border-left:4px solid var(--rouge)}
+
+  /* ---------- Contacts ---------- */
+  .contacts{margin-top:26px}
+  .cgrid{display:grid;grid-template-columns:1fr;gap:8px}
+  .cItem{background:var(--panneau);border:1px solid var(--ligne);border-radius:10px;
+    padding:10px 12px;font-size:.82rem;display:flex;justify-content:space-between;gap:10px;align-items:center}
+  .cItem b{font-size:.82rem}
+  .cItem a{font-family:var(--mono);color:var(--bleu);font-weight:700;text-decoration:none;white-space:nowrap}
+  .cItem .small{font-size:.72rem;color:#5A6A85}
+
+  footer{margin-top:26px;font-size:.7rem;color:#66748C;line-height:1.5}
+
+  /* ---------- Desktop ---------- */
+  @media(min-width:1000px){
+    main{display:grid;grid-template-columns:440px 1fr;gap:22px;align-items:start}
+    .controls,.prep,.bag,.rocade,.contacts,footer{grid-column:2}
+    .mapwrap{grid-column:1;grid-row:1/span 8;position:sticky;top:112px}
+    #map{height:calc(100vh - 200px)}
+    .roadbook{grid-column:2;margin-top:6px}
+  }
+  @media(prefers-reduced-motion:no-preference){
+    .card,.chip,.pass{transition:background .25s,border-color .25s,color .25s}
+  }
+</style>
+</head>
+<body>
+
+<header class="gantry">
+  <div class="gantry-in">
+    <div class="dest">
+      <div class="eyebrow">Samedi 25 juillet 2026 · sans Bordeaux</div>
+      <h1>Argelès-Gazost</h1>
+      <div class="sub">Camping Les 3 Vallées · ≈ 590 km · 2 recharges Tesla</div>
+    </div>
+    <div class="eta">
+      <span class="lbl">Arrivée cible</span>
+      <span class="big" id="etaBig">17:30</span>
+      <span class="marge" id="marge">Marge 0 h 30 / 18 h 00</span>
+    </div>
+  </div>
+  <div class="nextline">
+    <span class="prog" id="prog">0/6</span>
+    <span class="nx" id="nextStep">Prochaine étape : départ 09:30</span>
+  </div>
+</header>
+
+<div class="alerte">Bison Futé : samedi rouge — départ 9 h 30 : marge fine, décision Waze à la recharge de Saintes</div>
+
+<main>
+  <section class="controls" aria-label="Réglages">
+    <div class="ctl">
+      <label for="dep">Départ réel</label>
+      <input type="time" id="dep" value="09:30">
+    </div>
+    <div class="ctl ctl-toggle">
+      <input type="checkbox" id="altT">
+      <label for="altT">Afficher les itinéraires bis</label>
+    </div>
+    <button class="reset" id="reset">Réinitialiser le suivi</button>
+  </section>
+
+  <div class="mapwrap">
+    <div id="map" role="application" aria-label="Carte du trajet"></div>
+    <div class="map-note" id="mapNote">Fond de carte indisponible (hors connexion ?) — le tracé et les étapes restent affichés.</div>
+    <div class="legende">
+      <span><i class="tiret"></i> Autoroute</span>
+      <span><i class="tiret dash"></i> Départementales</span>
+      <span><i class="tiret alt"></i> Itinéraire bis</span>
+    </div>
+  </div>
+
+  <section class="prep" aria-label="Avant de partir">
+    <h2>Avant de partir</h2>
+    <div class="chips" id="prepChips"></div>
+  </section>
+
+  <section class="bag" aria-label="Check-list bagages">
+    <h2>Check-list bagages · <span class="bcount" id="bagTot">0/70</span></h2>
+    <div id="bagWrap"></div>
+  </section>
+
+  <section class="roadbook" aria-label="Étapes du trajet">
+    <h2>Roadbook — heures cibles recalculées selon le départ réel</h2>
+    <div id="cards"></div>
+    <p class="rocade">La rocade de Bordeaux est volontairement exclue : gain ≈ 15 min au mieux,
+      risque de 1 à 2 h perdues un jour rouge. Horaires cibles avec ≈ 45 min de provision trafic (par circulation fluide vous serez en avance) — la navigation Tesla
+      et Waze font foi en temps réel.</p>
+  </section>
+
+  <section class="contacts" aria-label="Contacts utiles">
+    <h2>Contacts &amp; réflexes</h2>
+    <div class="cgrid">
+      <div class="cItem"><span><b>Camping Les 3 Vallées</b><br><span class="small">Av. des Pyrénées, Argelès-Gazost · réception jusqu’à 19 h</span></span><a href="tel:+33562903547">05 62 90 35 47</a></div>
+      <div class="cItem"><span><b>Assistance Tesla</b><br><span class="small">Panne / borne défaillante</span></span><a href="tel:+33970730850">09 70 73 08 50</a></div>
+      <div class="cItem"><span><b>Radio autoroute</b><br><span class="small">Info trafic en continu</span></span><span style="font-family:var(--mono);font-weight:700">107.7 FM</span></div>
+      <div class="cItem"><span><b>État du trafic</b><br><span class="small">Avant de partir et aux pauses</span></span><span style="font-family:var(--mono);font-weight:700">bison-fute.gouv.fr</span></div>
+    </div>
+  </section>
+
+  <footer>
+    Tracé indicatif (points approchés, hors géométrie routière exacte). Superchargeurs vérifiés au
+    23–24/07/2026 : Saintes Nord (20 bornes, 250 kW), Saintes Bois-Saint-Georges (8 bornes),
+    Aire-sur-l’Adour (12 bornes, 250 kW) — source tesla.com. Le suivi (coches, heure de départ)
+    est enregistré sur cet appareil quand c’est possible.
+  </footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+"use strict";
+
+/* ================= Données ================= */
+const KEY = "argeles-20260725-v2";
+
+const STEPS = [
+  {id:"depart", n:"1", km:0, off:0, charge:null,
+   titre:"Départ · Saint-Georges-de-Montaigu",
+   route:"A83 dès Montaigu → Niort → A10 direction Bordeaux",
+   notes:["Batterie à 100 %","Navigation Tesla lancée avant de rouler (affluence des superchargeurs en temps réel)","Créneau critique : la Gironde se traversera vers 12 h – 13 h, le pic du samedi rouge — chaque quart d’heure gagné au départ compte"],
+   ll:[46.9471,-1.2948]},
+  {id:"saintes", n:"2", km:180, off:105, charge:"Recharge 15 min + courses",
+   titre:"Recharge 1 · Superchargeur Saintes",
+   route:"A10 sortie Saintes — repartir vers 80 %",
+   notes:["Privilégier « Saintes Nord » : 20 bornes 250 kW, Hyper U attenant","Pendant la charge, une personne file à l’Hyper U : sandwichs, fruits, boissons fraîches, cafés — 15 min chrono, tout en glacière","Passagers : déjeuner en roulant entre 12 h et 13 h. Conducteur : sa part attend Aire-sur-l’Adour","Repli : hôtel du Bois-Saint-Georges, 132 cours Genet (8 bornes, mais sans courses possibles)"],
+   ll:[45.7501,-0.6617]},
+  {id:"libourne", n:"3", km:285, off:205, charge:null,
+   titre:"Libourne · dos à la rocade",
+   route:"A10 → bifurcation A89 dir. Libourne/Périgueux avant Saint-André-de-Cubzac, sortie Libourne",
+   notes:["Point de non-retour vis-à-vis de Bordeaux","Waze actif jusqu’à Langon : ces départementales captent aussi du trafic d’évitement"],
+   ll:[44.9148,-0.2442]},
+  {id:"sauveterre", n:"4", km:315, off:250, charge:null,
+   titre:"Sauveterre-de-Guyenne · Entre-deux-Mers",
+   route:"D670 par Branne → Sauveterre, puis D672 → Langon (≈ 50 min). À Langon : A62 sur 1 km puis A65 dir. Pau",
+   notes:["Vitesse limitée, villages traversés : prudence","A65 chère au péage mais quasi vide"],
+   ll:[44.6924,-0.0862]},
+  {id:"aire", n:"5", km:480, off:345, charge:"Recharge + repas conducteur 30 min",
+   titre:"Recharge 2 · Superchargeur Aire-sur-l’Adour",
+   route:"Sortie A65 Aire-sur-l’Adour — 103 av. de Bordeaux",
+   notes:["12 bornes 250 kW","Vraie pause assise : repas du conducteur, café-dessert pour tous, jambes dégourdies","Ne comptez rien acheter ici (services quasi nuls) : tout vient de Saintes","Repartir vers 80 % : il reste ≈ 110 km"],
+   ll:[43.7251,-0.2675]},
+  {id:"camping", n:"6", km:590, off:480, charge:null,
+   titre:"Arrivée · Camping Les 3 Vallées",
+   route:"A65 → Pau → A64 dir. Tarbes, sortie Soumoulou → D940 Lourdes → D821 → Argelès-Gazost",
+   notes:["Réception ouverte jusqu’à 19 h le samedi","Si l’arrivée glisse après 19 h : prévenir le camping (numéro en bas de page)","Dîner : restaurant et snack sur place, rien à prévoir"],
+   ll:[43.0122,-0.0970]}
+];
+
+const DEVS = [
+  {after:"saintes", id:"dev1",
+   titre:"Itinéraire bis · si l’A10 coince après Saintes",
+   texte:"Réflexe pendant la recharge de Saintes : regarder Waze. A10 sud orange ou rouge → sortie Mirambeau d’office → Montendre → Montguyon → Coutras → Libourne, puis itinéraire normal.",
+   delta:"+30 à 40 min",
+   line:[[45.37,-0.57],[45.285,-0.405],[45.215,-0.185],[45.10,-0.15],[45.035,-0.128],[44.9148,-0.2442]]},
+  {after:"sauveterre", id:"dev2",
+   titre:"Itinéraire bis · si l’A65 est bloquée à Langon",
+   texte:"Rester sur l’A62 jusqu’à Agen, puis N21 : Auch → Tarbes → Lourdes. Superchargeur à Agen à confirmer sur le planificateur.",
+   delta:"+45 min env.",
+   line:[[44.554,-0.249],[44.58,-0.04],[44.50,0.16],[44.39,0.32],[44.25,0.52],[44.20,0.62],[44.05,0.64],[43.93,0.62],[43.85,0.66],[43.646,0.586],[43.51,0.40],[43.43,0.30],[43.31,0.16],[43.233,0.07],[43.15,0.01],[43.095,-0.045]]}
+];
+
+const PREP = [
+  {k:"batt", t:"Batterie 100 %"},
+  {k:"pique", t:"Glacière + gourdes (sandwichs maison, ou courses éclair à Saintes)"},
+  {k:"pit", t:"Croquettes de Pit + eau"},
+  {k:"nav", t:"Navigation Tesla lancée"},
+  {k:"waze", t:"Waze prêt (Libourne → Langon)"},
+  {k:"bison", t:"Trafic vérifié avant de partir"}
+];
+
+const BAG = [
+  {g:"Épicerie de démarrage", items:[
+    "Dosettes café","Sachets de tisane","Sachets de thé","Filtre en métal pour le thé",
+    "Céréales petit-déj’","Lait : 2 à 3 L pour démarrer","Sel, poivre, épices","Sucre",
+    "Un paquet de pâtes","Riz","Thon en boîte","Maïs en boîte"]},
+  {g:"Cuisine & vaisselle", items:[
+    "Bassine","Dosettes lave-vaisselle","Produit vaisselle","Éponge","Torchon","Gants ++",
+    "Quelques Tupperware","Ciseaux de cuisine","Épluche-légumes","Serviettes de table","Nappe ?"]},
+  {g:"Couchage & doudous", items:[
+    "Draps du dessous — grand lit","Draps du dessous — Junie","Draps des autres ? (pas Flore)",
+    "Oreiller Virginie","Chat grenouille","Chat Junie","Chat Sven","Luni"]},
+  {g:"Hygiène & santé", items:[
+    "Affaires de toilette","PQ ×2","Trousse à pharmacie","Trousse à pansements","Tampons",
+    "Hydromed gel","Couches Sven","Épilateur"]},
+  {g:"Soleil & baignade", items:[
+    "Piscine : maillots, lunettes, brassards Sven","Serviettes de plage","Crème solaire",
+    "Chacun sa casquette","Chacun ses lunettes de soleil","Brumisateurs"]},
+  {g:"Chaussures & météo", items:[
+    "Tongs & claquettes","Chaussures de rando","Chaussures de sport","Chaussures de ville",
+    "Vestes de pluie","Petits sacs à dos pour les randos"]},
+  {g:"Activités & création", items:[
+    "Laine pour le haut en crochet de Flore + crochets","Bible des granny squares",
+    "De quoi faire des bracelets + cercle","Feutres Sven","Carnet photo vacances (Junie et Sven)",
+    "Crayons : couleurs, feutres, beaux…","Scotch","Livres (à voir)","Jeux (à voir)","Activités (à voir)"]},
+  {g:"Pratique & électricité", items:[
+    "PINCES À LINGE","Lessive en dosettes","Glacière tissu","Sacs de courses","Chacun sa gourde",
+    "Rallonge","Plusieurs chargeurs","Ventilateurs","Tapette à mouches"]}
+];
+
+/* Tracés (indicatifs) */
+const R_AUTO1 = [[46.947,-1.295],[46.86,-1.23],[46.77,-1.19],[46.68,-1.06],[46.60,-1.02],[46.53,-0.95],[46.45,-0.81],[46.38,-0.66],[46.30,-0.53],[46.23,-0.52],[46.10,-0.53],[45.95,-0.55],[45.83,-0.60],[45.7501,-0.6617],[45.66,-0.60],[45.58,-0.55],[45.45,-0.55],[45.37,-0.57],[45.25,-0.56],[45.13,-0.52],[45.04,-0.46],[44.995,-0.435],[44.975,-0.375],[44.95,-0.31],[44.9148,-0.2442]];
+const R_DEP1  = [[44.9148,-0.2442],[44.87,-0.20],[44.83,-0.18],[44.77,-0.13],[44.73,-0.10],[44.6924,-0.0862],[44.65,-0.12],[44.61,-0.17],[44.565,-0.225],[44.554,-0.249]];
+const R_AUTO2 = [[44.554,-0.249],[44.50,-0.245],[44.43,-0.22],[44.34,-0.24],[44.25,-0.30],[44.12,-0.36],[44.00,-0.40],[43.93,-0.41],[43.82,-0.36],[43.7251,-0.2675],[43.65,-0.27],[43.56,-0.28],[43.47,-0.33],[43.40,-0.40],[43.345,-0.428],[43.335,-0.37],[43.32,-0.30],[43.30,-0.245],[43.278,-0.200]];
+const R_DEP2  = [[43.278,-0.200],[43.22,-0.15],[43.18,-0.11],[43.14,-0.075],[43.095,-0.045],[43.06,-0.062],[43.03,-0.082],[43.0122,-0.0970]];
+
+/* ================= État ================= */
+let state = {dep:"09:30", steps:{}, prep:{}, bag:{}, alts:false};
+
+async function loadState(){
+  try{
+    if(window.storage && window.storage.get){
+      const r = await window.storage.get(KEY);
+      if(r && r.value){ Object.assign(state, JSON.parse(r.value)); }
+    }
+  }catch(e){ /* clé absente ou stockage indisponible : on continue en mémoire */ }
+}
+async function saveState(){
+  try{
+    if(window.storage && window.storage.set){
+      await window.storage.set(KEY, JSON.stringify(state), false);
+    }
+  }catch(e){ /* meilleur effort */ }
+}
+
+/* ================= Utilitaires temps ================= */
+const toMin = s => { const [h,m] = s.split(":").map(Number); return h*60+m; };
+const fmt   = m => { m = ((m%1440)+1440)%1440; const h = Math.floor(m/60), mm = m%60;
+  return String(h).padStart(2,"0")+":"+String(mm).padStart(2,"0"); };
+const nowHM = () => { const d = new Date();
+  return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); };
+
+/* ================= Carte ================= */
+let map, altGroup, markers = {};
+function initMap(){
+  map = L.map("map", {scrollWheelZoom:false});
+  const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {maxZoom:17, attribution:"© OpenStreetMap"});
+  tiles.on("tileerror", () => { document.getElementById("mapNote").classList.add("show"); });
+  tiles.addTo(map);
+
+  const auto = {color:"#0B3C8A", weight:5, opacity:.95};
+  const dep  = {color:"#0B3C8A", weight:4, opacity:.95, dashArray:"8 8"};
+  L.polyline(R_AUTO1, auto).addTo(map);
+  L.polyline(R_DEP1,  dep ).addTo(map);
+  L.polyline(R_AUTO2, auto).addTo(map);
+  L.polyline(R_DEP2,  dep ).addTo(map);
+
+  altGroup = L.layerGroup(DEVS.map(d =>
+    L.polyline(d.line, {color:"#C79600", weight:4, opacity:.9, dashArray:"4 10"})));
+
+  STEPS.forEach(s => {
+    const cls = "mk" + (s.charge ? " charge" : "");
+    const ic = L.divIcon({className:"", html:'<div class="'+cls+'" id="mk-'+s.id+'">'+(s.charge?"⚡":s.n)+"</div>",
+      iconSize:[30,30], iconAnchor:[15,15]});
+    markers[s.id] = L.marker(s.ll, {icon:ic}).addTo(map)
+      .bindPopup("<b>"+s.titre+"</b>"+s.route);
+  });
+
+  map.fitBounds(L.latLngBounds(R_AUTO1.concat(R_AUTO2, R_DEP2)), {padding:[24,24]});
+}
+
+/* ================= Rendu ================= */
+function buildCards(){
+  const wrap = document.getElementById("cards");
+  wrap.innerHTML = "";
+  STEPS.forEach((s, i) => {
+    const card = document.createElement("article");
+    card.className = "card" + (i === STEPS.length-1 ? " last" : "");
+    card.id = "card-"+s.id;
+    card.innerHTML =
+      '<div class="node"><div class="mk'+(s.charge?" charge":"")+'" id="nd-'+s.id+'">'+(s.charge?"⚡":s.n)+'</div></div>'+
+      '<div class="titre">'+s.titre+'</div>'+
+      '<div class="route">'+s.route+'</div>'+
+      '<div class="meta">'+
+        '<span class="tag km">KM '+s.km+'</span>'+
+        '<span class="tag" id="t-'+s.id+'">—</span>'+
+        (s.charge ? '<span class="tag charge">'+s.charge+'</span>' : '')+
+      '</div>'+
+      '<ul>'+s.notes.map(n => "<li>"+n+"</li>").join("")+'</ul>'+
+      '<button class="pass" id="p-'+s.id+'" aria-pressed="false">Marquer « passé »</button>';
+    card.addEventListener("click", () => {
+      map.flyTo(s.ll, 11, {duration:.8});
+      markers[s.id].openPopup();
+    });
+    const btn = card.querySelector(".pass");
+    btn.addEventListener("click", ev => {
+      ev.stopPropagation();
+      if(state.steps[s.id]) delete state.steps[s.id];
+      else state.steps[s.id] = nowHM();
+      saveState(); refresh();
+    });
+    wrap.appendChild(card);
+    const dv = DEVS.find(d => d.after === s.id);
+    if(dv){
+      const el = document.createElement("aside");
+      el.className = "dev"; el.id = dv.id;
+      el.innerHTML = '<div class="dv-titre">'+dv.titre+'</div><p>'+dv.texte+'</p>'+
+                     '<span class="delta">'+dv.delta+'</span>';
+      wrap.appendChild(el);
+    }
+  });
+}
+
+function buildPrep(){
+  const wrap = document.getElementById("prepChips");
+  wrap.innerHTML = "";
+  PREP.forEach(p => {
+    const b = document.createElement("button");
+    b.className = "chip"; b.id = "prep-"+p.k;
+    b.setAttribute("aria-pressed", "false");
+    b.innerHTML = '<span class="box">✓</span>'+p.t;
+    b.addEventListener("click", () => {
+      state.prep[p.k] = !state.prep[p.k];
+      saveState(); refresh();
+    });
+    wrap.appendChild(b);
+  });
+}
+
+function buildBag(){
+  const wrap = document.getElementById("bagWrap");
+  wrap.innerHTML = "";
+  BAG.forEach((g, gi) => {
+    const d = document.createElement("details");
+    d.className = "bgrp";
+    d.innerHTML = '<summary><span>'+g.g+'</span><span class="bcount" id="bc-'+gi+'">0/'+g.items.length+'</span></summary>';
+    const box = document.createElement("div");
+    box.className = "bitems";
+    g.items.forEach((it, ii) => {
+      const b = document.createElement("button");
+      b.className = "bitem"; b.id = "b-"+gi+"-"+ii;
+      b.setAttribute("aria-pressed","false");
+      b.innerHTML = '<span class="box">✓</span><span>'+it+'</span>';
+      b.addEventListener("click", () => {
+        state.bag = state.bag || {};
+        if(state.bag[b.id]) delete state.bag[b.id]; else state.bag[b.id] = 1;
+        saveState(); refresh();
+      });
+      box.appendChild(b);
+    });
+    d.appendChild(box);
+    wrap.appendChild(d);
+  });
+}
+
+function refresh(){
+  const dep = toMin(state.dep || "09:30");
+  document.getElementById("dep").value = state.dep || "09:30";
+
+  /* horaires cibles */
+  STEPS.forEach(s => {
+    const el = document.getElementById("t-"+s.id);
+    const done = state.steps[s.id];
+    el.textContent = done ? ("Passé à "+done) : ("Cible "+fmt(dep + s.off));
+    const card = document.getElementById("card-"+s.id);
+    card.classList.toggle("done", !!done);
+    const btn = document.getElementById("p-"+s.id);
+    btn.textContent = done ? ("Passé à "+done+" — annuler") : "Marquer « passé »";
+    btn.setAttribute("aria-pressed", done ? "true" : "false");
+    const nd = document.getElementById("nd-"+s.id);
+    if(nd) nd.classList.toggle("done", !!done);
+    const mk = document.getElementById("mk-"+s.id);
+    if(mk) mk.classList.toggle("done", !!done);
+  });
+
+  /* portique */
+  const arr = dep + STEPS[STEPS.length-1].off;
+  document.getElementById("etaBig").textContent = fmt(arr);
+  const m = 1080 - arr; /* 18:00 */
+  const mEl = document.getElementById("marge");
+  const hh = Math.floor(Math.abs(m)/60), mm = Math.abs(m)%60;
+  if(m >= 0){ mEl.textContent = "Marge "+hh+" h "+String(mm).padStart(2,"0")+" / 18 h 00"; mEl.classList.remove("bad"); }
+  else{ mEl.textContent = "Retard "+hh+" h "+String(mm).padStart(2,"0")+" / 18 h 00 — partez plus tôt"; mEl.classList.add("bad"); }
+
+  const doneCount = STEPS.filter(s => state.steps[s.id]).length;
+  document.getElementById("prog").textContent = doneCount+"/"+STEPS.length;
+  const next = STEPS.find(s => !state.steps[s.id]);
+  document.getElementById("nextStep").textContent =
+    next ? ("Prochaine étape : "+next.titre+" · cible "+fmt(dep+next.off)) : "Arrivés — bon séjour !";
+
+  /* préparatifs */
+  PREP.forEach(p => {
+    document.getElementById("prep-"+p.k).setAttribute("aria-pressed", state.prep[p.k] ? "true" : "false");
+  });
+
+  /* bagages */
+  state.bag = state.bag || {};
+  let bTot = 0, bDone = 0;
+  BAG.forEach((g, gi) => {
+    let done = 0;
+    g.items.forEach((it, ii) => {
+      const id = "b-"+gi+"-"+ii;
+      const on = !!state.bag[id];
+      if(on) done++;
+      const el = document.getElementById(id);
+      if(el) el.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    bTot += g.items.length; bDone += done;
+    const c = document.getElementById("bc-"+gi);
+    if(c){ c.textContent = done+"/"+g.items.length; c.classList.toggle("full", done === g.items.length); }
+  });
+  const bt = document.getElementById("bagTot");
+  if(bt){ bt.textContent = bDone+"/"+bTot; bt.classList.toggle("full", bDone === bTot); }
+
+  /* itinéraires bis */
+  document.getElementById("altT").checked = !!state.alts;
+  if(state.alts){ altGroup.addTo(map); } else { map.removeLayer(altGroup); }
+  DEVS.forEach(d => document.getElementById(d.id).classList.toggle("hl", !!state.alts));
+}
+
+/* ================= Init ================= */
+document.getElementById("dep").addEventListener("change", e => {
+  state.dep = e.target.value || "09:30"; saveState(); refresh();
+});
+document.getElementById("altT").addEventListener("change", e => {
+  state.alts = e.target.checked; saveState(); refresh();
+});
+document.getElementById("reset").addEventListener("click", () => {
+  state = {dep:"09:30", steps:{}, prep:{}, bag:{}, alts:false}; saveState(); refresh();
+});
+
+initMap();
+buildCards();
+buildPrep();
+buildBag();
+loadState().then(refresh);
+</script>
+</body>
+</html>
