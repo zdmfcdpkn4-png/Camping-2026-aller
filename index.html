@@ -89,16 +89,32 @@
   .prep{margin:16px 0 6px}
   .prep h2, .roadbook h2, .contacts h2, .bag h2{font-size:.78rem;letter-spacing:.16em;text-transform:uppercase;
     color:var(--bleu);margin-bottom:8px}
-  .chips{display:flex;flex-wrap:wrap;gap:8px}
-  .pgrp{margin-bottom:12px}
-  .pgrp:last-child{margin-bottom:0}
-  .plabel{display:flex;align-items:center;gap:8px;margin-bottom:6px;
-    font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--bleu)}
+  .roadbar{position:relative;height:28px;background:var(--bleu-nuit);border-radius:999px;
+    margin:0 0 12px;overflow:hidden}
+  .roadbar::before{content:"";position:absolute;left:10px;right:10px;top:50%;
+    border-top:2px dashed rgba(255,255,255,.5);z-index:1}
+  .roadfill{position:absolute;top:0;bottom:0;left:0;width:0%;background:var(--vert);
+    transition:width .4s ease}
+  .roadcar{position:absolute;top:50%;left:2%;transform:translateY(-50%) scaleX(-1);
+    font-size:1.15rem;transition:left .4s ease;z-index:2}
+  .roadgoal{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:1rem;z-index:2}
+  .pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px}
+  .pcard{background:var(--panneau);border:1.5px solid var(--ligne);border-radius:12px;
+    padding:10px 10px 9px}
+  .pcard.full{border-color:var(--vert)}
+  .plabel{display:flex;align-items:center;gap:7px;margin-bottom:7px;
+    font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--bleu)}
+  .plabel .pemo{font-size:1.05rem;letter-spacing:0}
+  .plabel .pname{flex:1}
+  .pcard.full .pname::after{content:" 🎉";letter-spacing:0}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
   .chip{border:1.5px solid var(--ligne);background:var(--panneau);border-radius:999px;
-    padding:9px 14px;font-size:.8rem;display:inline-flex;align-items:center;gap:8px;min-height:44px}
+    padding:7px 11px;font-size:.76rem;display:inline-flex;align-items:center;gap:7px;min-height:40px;
+    text-align:left}
+  @keyframes chipPop{0%{transform:scale(.92)}60%{transform:scale(1.06)}100%{transform:scale(1)}}
   .chip .box{width:16px;height:16px;border-radius:4px;border:2px solid var(--bleu);flex:none;
     display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:.7rem}
-  .chip[aria-pressed="true"]{border-color:var(--vert);color:var(--vert)}
+  .chip[aria-pressed="true"]{border-color:var(--vert);color:var(--vert);animation:chipPop .25s ease}
   .chip[aria-pressed="true"] .box{background:var(--vert);border-color:var(--vert)}
 
   /* ---------- Check-list bagages ---------- */
@@ -241,8 +257,13 @@
   </div>
 
   <section class="prep" aria-label="Avant de partir">
-    <h2>Avant de partir</h2>
-    <div id="prepChips"></div>
+    <h2>Avant de partir · <span class="bcount" id="prepTot">0/12</span></h2>
+    <div class="roadbar" id="prepRoad" aria-hidden="true">
+      <div class="roadfill" id="prepFill"></div>
+      <span class="roadcar" id="prepCar">🚗</span>
+      <span class="roadgoal">🏕️</span>
+    </div>
+    <div id="prepChips" class="pgrid"></div>
   </section>
 
   <section class="bag" aria-label="Check-list bagages">
@@ -331,22 +352,25 @@ const DEVS = [
 ];
 
 const PREP = [
-  {g:"Maison", items:[
+  {g:"Repas du trajet", e:"🥪", items:[
+    {k:"pique", t:"Sandwichs faits — sinon courses à Saintes"},
+    {k:"glaciere", t:"Glacière chargée"},
+    {k:"gourdes", t:"Gourdes remplies"}
+  ]},
+  {g:"Maison", e:"🏠", items:[
     {k:"volets", t:"Volets fermés"},
     {k:"eteint", t:"Tout éteint"},
     {k:"menage", t:"Accès femme de ménage OK"},
     {k:"clefs", t:"Clefs remises aux voisins"}
   ]},
-  {g:"Pit", items:[
+  {g:"Pit", e:"🐾", items:[
     {k:"pitsorti", t:"Pit sorti"},
-    {k:"pit", t:"Croquettes de Pit + eau"}
+    {k:"pit", t:"Croquettes + eau"}
   ]},
-  {g:"Voiture & trajet", items:[
+  {g:"Voiture", e:"🚗", items:[
     {k:"batt", t:"Batterie 100 %"},
-    {k:"pique", t:"Glacière + gourdes (sandwichs maison, ou courses éclair à Saintes)"},
-    {k:"nav", t:"Navigation Tesla lancée"},
     {k:"waze", t:"Waze prêt (Libourne → Langon)"},
-    {k:"bison", t:"Trafic vérifié avant de partir"}
+    {k:"bison", t:"Trafic vérifié"}
   ]}
 ];
 
@@ -543,8 +567,8 @@ function buildPrep(){
   wrap.innerHTML = "";
   PREP.forEach((g, gi) => {
     const grp = document.createElement("div");
-    grp.className = "pgrp";
-    grp.innerHTML = '<div class="plabel"><span>'+g.g+'</span><span class="bcount" id="pc-'+gi+'">0/'+g.items.length+'</span></div>';
+    grp.className = "pcard"; grp.id = "pcard-"+gi;
+    grp.innerHTML = '<div class="plabel"><span class="pemo">'+g.e+'</span><span class="pname">'+g.g+'</span><span class="bcount" id="pc-'+gi+'">0/'+g.items.length+'</span></div>';
     const row = document.createElement("div");
     row.className = "chips";
     g.items.forEach(p => {
@@ -627,16 +651,28 @@ function refresh(){
     next ? ("Prochaine étape : "+next.titre+" · cible "+fmt(dep+next.off)) : "Arrivés — bon séjour !";
 
   /* préparatifs */
+  let pTot = 0, pDone = 0;
   PREP.forEach((g, gi) => {
     let done = 0;
     g.items.forEach(p => {
       const on = !!state.prep[p.k];
       if(on) done++;
-      document.getElementById("prep-"+p.k).setAttribute("aria-pressed", on ? "true" : "false");
+      const el = document.getElementById("prep-"+p.k);
+      if(el) el.setAttribute("aria-pressed", on ? "true" : "false");
     });
+    pTot += g.items.length; pDone += done;
     const c = document.getElementById("pc-"+gi);
     if(c){ c.textContent = done+"/"+g.items.length; c.classList.toggle("full", done === g.items.length); }
+    const card = document.getElementById("pcard-"+gi);
+    if(card) card.classList.toggle("full", done === g.items.length);
   });
+  const pt = document.getElementById("prepTot");
+  if(pt){ pt.textContent = pDone+"/"+pTot; pt.classList.toggle("full", pDone === pTot); }
+  const pPct = pTot ? Math.round(pDone/pTot*100) : 0;
+  const pFill = document.getElementById("prepFill");
+  if(pFill) pFill.style.width = pPct+"%";
+  const pCar = document.getElementById("prepCar");
+  if(pCar) pCar.style.left = (2 + pPct*0.86)+"%";
 
   /* bagages */
   state.bag = state.bag || {};
