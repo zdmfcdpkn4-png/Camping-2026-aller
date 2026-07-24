@@ -90,6 +90,10 @@
   .prep h2, .roadbook h2, .contacts h2, .bag h2{font-size:.78rem;letter-spacing:.16em;text-transform:uppercase;
     color:var(--bleu);margin-bottom:8px}
   .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .pgrp{margin-bottom:12px}
+  .pgrp:last-child{margin-bottom:0}
+  .plabel{display:flex;align-items:center;gap:8px;margin-bottom:6px;
+    font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--bleu)}
   .chip{border:1.5px solid var(--ligne);background:var(--panneau);border-radius:999px;
     padding:9px 14px;font-size:.8rem;display:inline-flex;align-items:center;gap:8px;min-height:44px}
   .chip .box{width:16px;height:16px;border-radius:4px;border:2px solid var(--bleu);flex:none;
@@ -238,7 +242,7 @@
 
   <section class="prep" aria-label="Avant de partir">
     <h2>Avant de partir</h2>
-    <div class="chips" id="prepChips"></div>
+    <div id="prepChips"></div>
   </section>
 
   <section class="bag" aria-label="Check-list bagages">
@@ -327,12 +331,23 @@ const DEVS = [
 ];
 
 const PREP = [
-  {k:"batt", t:"Batterie 100 %"},
-  {k:"pique", t:"Glacière + gourdes (sandwichs maison, ou courses éclair à Saintes)"},
-  {k:"pit", t:"Croquettes de Pit + eau"},
-  {k:"nav", t:"Navigation Tesla lancée"},
-  {k:"waze", t:"Waze prêt (Libourne → Langon)"},
-  {k:"bison", t:"Trafic vérifié avant de partir"}
+  {g:"Maison", items:[
+    {k:"volets", t:"Volets fermés"},
+    {k:"eteint", t:"Tout éteint"},
+    {k:"menage", t:"Accès femme de ménage OK"},
+    {k:"clefs", t:"Clefs remises aux voisins"}
+  ]},
+  {g:"Pit", items:[
+    {k:"pitsorti", t:"Pit sorti"},
+    {k:"pit", t:"Croquettes de Pit + eau"}
+  ]},
+  {g:"Voiture & trajet", items:[
+    {k:"batt", t:"Batterie 100 %"},
+    {k:"pique", t:"Glacière + gourdes (sandwichs maison, ou courses éclair à Saintes)"},
+    {k:"nav", t:"Navigation Tesla lancée"},
+    {k:"waze", t:"Waze prêt (Libourne → Langon)"},
+    {k:"bison", t:"Trafic vérifié avant de partir"}
+  ]}
 ];
 
 const BAG = [
@@ -526,17 +541,26 @@ function buildCards(){
 function buildPrep(){
   const wrap = document.getElementById("prepChips");
   wrap.innerHTML = "";
-  PREP.forEach(p => {
-    const b = document.createElement("button");
-    b.className = "chip"; b.id = "prep-"+p.k;
-    b.setAttribute("aria-pressed", "false");
-    b.innerHTML = '<span class="box">✓</span>'+p.t;
-    b.addEventListener("click", () => {
-      state.prep[p.k] = !state.prep[p.k];
-      touch("prep." + p.k);
-      refresh(); saveState();
+  PREP.forEach((g, gi) => {
+    const grp = document.createElement("div");
+    grp.className = "pgrp";
+    grp.innerHTML = '<div class="plabel"><span>'+g.g+'</span><span class="bcount" id="pc-'+gi+'">0/'+g.items.length+'</span></div>';
+    const row = document.createElement("div");
+    row.className = "chips";
+    g.items.forEach(p => {
+      const b = document.createElement("button");
+      b.className = "chip"; b.id = "prep-"+p.k;
+      b.setAttribute("aria-pressed", "false");
+      b.innerHTML = '<span class="box">✓</span>'+p.t;
+      b.addEventListener("click", () => {
+        state.prep[p.k] = !state.prep[p.k];
+        touch("prep." + p.k);
+        refresh(); saveState();
+      });
+      row.appendChild(b);
     });
-    wrap.appendChild(b);
+    grp.appendChild(row);
+    wrap.appendChild(grp);
   });
 }
 
@@ -603,8 +627,15 @@ function refresh(){
     next ? ("Prochaine étape : "+next.titre+" · cible "+fmt(dep+next.off)) : "Arrivés — bon séjour !";
 
   /* préparatifs */
-  PREP.forEach(p => {
-    document.getElementById("prep-"+p.k).setAttribute("aria-pressed", state.prep[p.k] ? "true" : "false");
+  PREP.forEach((g, gi) => {
+    let done = 0;
+    g.items.forEach(p => {
+      const on = !!state.prep[p.k];
+      if(on) done++;
+      document.getElementById("prep-"+p.k).setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    const c = document.getElementById("pc-"+gi);
+    if(c){ c.textContent = done+"/"+g.items.length; c.classList.toggle("full", done === g.items.length); }
   });
 
   /* bagages */
